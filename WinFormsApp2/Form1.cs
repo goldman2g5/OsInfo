@@ -5,12 +5,12 @@ namespace WinFormsApp2
 {
     public partial class Form1 : Form
     {
-        private static PerformanceCounterCategory category = new PerformanceCounterCategory("GPU Engine");
-        private static PerformanceCounterCategory performanceCounterCategory = new PerformanceCounterCategory("Network Interface");
+        private static PerformanceCounterCategory category = new("GPU Engine");
+        private static PerformanceCounterCategory performanceCounterCategory = new("Network Interface");
         private static string[]? interfaces = performanceCounterCategory.GetInstanceNames();
         private static string[]? counterNames = category.GetInstanceNames();
-        private List<PerformanceCounter> dataSentCounters = new List<PerformanceCounter>();
-        private List<PerformanceCounter> dataReceivedCounters = new List<PerformanceCounter>();
+        private List<PerformanceCounter> dataSentCounters = new();
+        private List<PerformanceCounter> dataReceivedCounters = new();
         private PerformanceCounter cpuCounter = new("Processor", "% Processor Time", "_Total");
         private PerformanceCounter ramCounter = new("Memory", "Available MBytes");
         private PerformanceCounter discCounter = new("PhysicalDisk", "% Disk Time", "_Total");
