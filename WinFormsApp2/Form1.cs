@@ -31,9 +31,9 @@ namespace WinFormsApp2
         private void timer1_Tick(object sender, EventArgs e)
         {
             
-            string GetHardwareInfo(string WIN32_Class)
+            string GetHardwareInfo(string WIN32)
             {
-                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM " + WIN32_Class);
+                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM " + WIN32);
                 foreach (ManagementObject obj in searcher.Get())
                 {
                     return obj["Name"].ToString().Trim();
