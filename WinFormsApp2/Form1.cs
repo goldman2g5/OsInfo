@@ -1,80 +1,55 @@
-using System.ComponentModel;
 using System.Diagnostics;
+using System.Management;
 
 namespace WinFormsApp2
 {
     public partial class Form1 : Form
     {
-        private PerformanceCounter cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
-        private PerformanceCounter ramCounter = new PerformanceCounter("Memory", "Available MBytes");
-        private PerformanceCounter discCounter = new PerformanceCounter("PhysicalDisk", "% Disk Time", "_Total");
-        private PerformanceCounter netCounterOut = new PerformanceCounter("Network Interface", "Bytes Sent/sec");
-        private PerformanceCounter netCounterIn = new PerformanceCounter("Network Interface", "Bytes Received/sec");
-        private List<double> cpuCounterAvg = new List<double>();
-        private List<double> gpuCounterAvg = new List<double>();
-        private List<double> discCounterAvg = new List<double>();
-        private List<double> ramCounterAvg = new List<double>();
-        private List<double> netCounterOutAvg = new List<double>();
-        private List<double> netCounterInAvg = new List<double>();
-
-        public static List<PerformanceCounter> GetGPUCounters()
-        {
-            var category = new PerformanceCounterCategory("GPU Engine");
-            var counterNames = category.GetInstanceNames();
-
-            var gpuCounters = counterNames
-                                .Where(counterName => counterName.EndsWith("engtype_3D"))
-                                .SelectMany(counterName => category.GetCounters(counterName))
-                                .Where(counter => counter.CounterName.Equals("Utilization Percentage"))
-                                .ToList();
-
-            return gpuCounters;
-        }
-
-        public static float GetGPUUsage(List<PerformanceCounter> gpuCounters)
-        {
-            gpuCounters.ForEach(x => x.NextValue());
-            var result = gpuCounters.Sum(x => x.NextValue());
-
-            return result;
-        }
+        private static PerformanceCounterCategory category = new PerformanceCounterCategory("GPU Engine");
+        private static PerformanceCounterCategory performanceCounterCategory = new PerformanceCounterCategory("Network Interface");
+        private static string[]? interfaces = performanceCounterCategory.GetInstanceNames();
+        private static string[]? counterNames = category.GetInstanceNames();
+        private List<PerformanceCounter> dataSentCounters = new List<PerformanceCounter>();
+        private List<PerformanceCounter> dataReceivedCounters = new List<PerformanceCounter>();
+        private PerformanceCounter cpuCounter = new("Processor", "% Processor Time", "_Total");
+        private PerformanceCounter ramCounter = new("Memory", "Available MBytes");
+        private PerformanceCounter discCounter = new("PhysicalDisk", "% Disk Time", "_Total");
+        private static List<PerformanceCounter> gpuCounters = counterNames.Where(counterName => counterName.EndsWith("engtype_3D")).SelectMany(counterName => category.GetCounters(counterName)).Where(counter => counter.CounterName.Equals("Utilization Percentage")).ToList();
+        private List<double> cpuCounterAvg = new();
+        private List<double> gpuCounterAvg = new();
+        private List<double> discCounterAvg = new();
+        private List<double> ramCounterAvg = new();
+        private List<double> netCounterOutAvg = new();
+        private List<double> netCounterInAvg = new();
 
         public Form1()
         {
             InitializeComponent();
-            timer1.Tick += new EventHandler(timer1_Tick);
-        }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            
+            timer1.Tick += timer1_Tick;
         }
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            var category = new PerformanceCounterCategory("GPU Engine");
-            var counterNames = category.GetInstanceNames();
-            PerformanceCounterCategory performanceCounterCategory = new PerformanceCounterCategory("Network Interface");
-            InstanceDataCollectionCollection data = performanceCounterCategory.ReadCategory();
-            var interfaces = performanceCounterCategory.GetInstanceNames();
-            var dataSentCounters = new List<PerformanceCounter>();
-            var dataReceivedCounters = new List<PerformanceCounter>();
-            float sendSum = 0;
-            float receiveSum = 0;
-
-            var gpuCounters = counterNames
-                                .Where(counterName => counterName.EndsWith("engtype_3D"))
-                                .SelectMany(counterName => category.GetCounters(counterName))
-                                .Where(counter => counter.CounterName.Equals("Utilization Percentage"))
-                                .ToList();
+            
+            string GetHardwareInfo(string WIN32_Class)
+            {
+                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM " + WIN32_Class);
+                foreach (ManagementObject obj in searcher.Get())
+                {
+                    return obj["Name"].ToString().Trim();
+                }
+                return "";
+            }
             gpuCounters.ForEach(x => x.NextValue());
             for (int i = 0; i < performanceCounterCategory.GetInstanceNames().Length; i++)
             {
-                dataReceivedCounters.Add(new PerformanceCounter("Network Interface", "Bytes Received/sec", interfaces[i]));
+                dataReceivedCounters.Add(new PerformanceCounter("Network Interface", "Bytes Received/sec",
+                    interfaces[i]));
                 dataSentCounters.Add(new PerformanceCounter("Network Interface", "Bytes Sent/sec", interfaces[i]));
-                sendSum += dataSentCounters[i].NextValue();
-                receiveSum += dataReceivedCounters[i].NextValue();
+                dataSentCounters[i].NextValue();
+                dataReceivedCounters[i].NextValue();
             }
+
             cpuCounterAvg.Add(cpuCounter.NextValue());
             gpuCounterAvg.Add(gpuCounters.Sum(x => x.NextValue()));
             discCounterAvg.Add(discCounter.NextValue());
@@ -83,34 +58,24 @@ namespace WinFormsApp2
             netCounterOutAvg.Add((double)dataSentCounters[0].NextValue() / 1024 / 1024);
 
 
-            foreach (List<double> i in new List<List<double>> { cpuCounterAvg, gpuCounterAvg, discCounterAvg, netCounterOutAvg, netCounterInAvg, ramCounterAvg })
-            {
-                if (i.Count >= 10)
-                {
-                    i.RemoveAt(0);
-                }
-            }
+            foreach (var i in new List<List<double>> { cpuCounterAvg, gpuCounterAvg, discCounterAvg, netCounterOutAvg, netCounterInAvg, ramCounterAvg }.Where(i => i.Count >= 10))
+                i.RemoveAt(0);
 
             List<string> ls = new List<string>
             {
-                $"¬ÂÒËˇ ÒËÒÚÂÏ˚: {Environment.OSVersion}",
-                $"“ÂÍÛ˘ËÈ ÔÓÎ¸ÁÓ‚‡ÚÂÎ¸: {Environment.UserName}",
-                $"¬ÂÏˇ ‡·ÓÚ˚ ÒËÒÚÂÏ˚: {Environment.TickCount / 3600000 % 24} ˜‡ÒÓ‚ {Environment.TickCount / 120000 % 60} ÏËÌÛÚ {Environment.TickCount / 1000 % 60} ÒÂÍÛÌ‰",
-                $"Ã‡Í‡ Ë ÏÓ‰ÂÎ¸ ÔÍ: {Environment.MachineName}",
-                $"ÃÓ‰ÂÎ¸ cpu: {Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER")}",
-                $"«‡„ÛÊÂÌÓÒÚ¸ cpu: {Math.Round(cpuCounterAvg.Average(), 2)} %",
-                $"«‡„ÛÊÂÌÓÒÚ¸ gpu: {Math.Round(gpuCounterAvg.Average(), 2)}%",
-                $"«‡„ÛÊÂÌÓÒÚ¸ ‰ËÒÍ‡: {Math.Round(discCounterAvg.Average(), 2)}%",
-                $"ƒÓÒÚÛÔÌÓ ram: {Math.Round(ramCounterAvg.Average(), 2)} MB",
-                $"—ÂÚ¸: In {Math.Round(netCounterInAvg.Average(), 2)}MB/sec | Out {Math.Round(netCounterOutAvg.Average(), 2)}MB/sec  | {netCounterInAvg.Count}"
+                $"–í–µ—Ä—Å–∏—è —Å–∏—Å—Ç–µ–º—ã: {Environment.OSVersion}",
+                $"–¢–µ–∫—É—â–∏–π –ø–æ–ª—å–∑–æ–≤–∞—Ç–µ–ª—å: {Environment.UserName}",
+                $"–í—Ä–µ–º—è —Ä–∞–±–æ—Ç—ã —Å–∏—Å—Ç–µ–º—ã: {Environment.TickCount / 3600000 % 24} —á–∞—Å–æ–≤ {Environment.TickCount / 120000 % 60} –º–∏–Ω—É—Ç {Environment.TickCount / 1000 % 60} —Å–µ–∫—É–Ω–¥",
+                $"–ú–∞—Ä–∫–∞ –∏ –º–æ–¥–µ–ª—å –ø–∫: {Environment.MachineName}",
+                $"–ú–æ–¥–µ–ª—å cpu: {GetHardwareInfo("Win32_Processor")}",
+                $"–ú–æ–¥–µ–ª—å gpu: {GetHardwareInfo("Win32_VideoController")}",
+                $"–ó–∞–≥—Ä—É–∂–µ–Ω–æ—Å—Ç—å cpu: {Math.Round(cpuCounterAvg.Average(), 2)} %",
+                $"–ó–∞–≥—Ä—É–∂–µ–Ω–æ—Å—Ç—å gpu: {Math.Round(gpuCounterAvg.Average(), 2)}%",
+                $"–ó–∞–≥—Ä—É–∂–µ–Ω–æ—Å—Ç—å –¥–∏—Å–∫–∞: {Math.Round(discCounterAvg.Average(), 2)}%",
+                $"–î–æ—Å—Ç—É–ø–Ω–æ ram: {Math.Round(ramCounterAvg.Average(), 2)} MB",
+                $"–°–µ—Ç—å: In {Math.Round(netCounterInAvg.Average(), 2)}MB/sec | Out {Math.Round(netCounterOutAvg.Average(), 2)}MB/sec"
             };
-
-            
-
-            foreach (DriveInfo i in DriveInfo.GetDrives())
-            {
-                ls.Add($"ƒËÒÍ {i.Name} {Math.Round((double)i.AvailableFreeSpace / 1024 / 1024 / 1024)}/{Math.Round((double)i.TotalSize / 1024 / 1024 / 1024)} √¡ ‰ÓÒÚÛÔÌÓ");
-            }
+            ls.AddRange(DriveInfo.GetDrives().Select(i => $"–î–∏—Å–∫ {i.Name} {Math.Round((double)i.AvailableFreeSpace / 1024 / 1024 / 1024)}/{Math.Round((double)i.TotalSize / 1024 / 1024 / 1024)} –ì–ë –¥–æ—Å—Ç—É–ø–Ω–æ"));
             richTextBox1.Lines = ls.ToArray();
         }
     }
